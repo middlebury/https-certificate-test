@@ -22,11 +22,19 @@
 
 # Set up our environment and variables
 usage="usage:
-$0 <ip-address> <hostname_1> [... <hostname_n>]
+$0 [-h] [--cacert path/to/ca-cert.pem] <ip-address> <hostname_1> [... <hostname_n>]
 or pipe hostnames via stdin:
 echo \"<hostname_1>
 ...
 <hostname_n>\" | $0 <ip-address>
+
+Options:
+  Native:
+    -h --help         Show this help
+  Curl options. Any other options will be passed to the underlying curl command.
+  Examples:
+    --cacert <file>   Pass CURL's --cacert option.
+
 "
 
 # Print help for this script
@@ -38,12 +46,36 @@ do
   fi
 done
 
+# Shift any arguments beginning with "-" to be passed to CURL
+CURL_OPTS=""
+while [[ $1 =~ ^--?.+$ ]]; do
+  # If the next argument looks like our IP Address, just add the opt alone.
+  if [[ $2 =~ ^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|([0-9a-fA-F]{0,4}:[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:[0-9a-fA-F]{0,4})$ ]]; then
+    CURL_OPTS="$CURL_OPTS $1"
+    shift
+  # If the next argument look like another option, just add the opt alone.
+  elif [[ $2 =~ ^--?.+$ ]]; then
+    CURL_OPTS="$CURL_OPTS $1"
+    shift
+  else
+    CURL_OPTS="$CURL_OPTS $1 $2"
+    shift
+    shift
+  fi
+done
+
 # Ensure that the config-section parameter is passed and that it is one of our sections
 IP_ADDRESS=$1
 if [ -z "$IP_ADDRESS" ]; then
   echo "$usage"
   echo "    <ip-address> must not be empty"
   exit 12
+fi
+
+if ! [[ "$IP_ADDRESS" =~ ^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|([0-9a-fA-F]{0,4}:[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:?[0-9a-fA-F]{0,4}:[0-9a-fA-F]{0,4})$ ]]; then
+  echo "$usage"
+  echo "    <ip-address> \"$IP_ADDRESS\" must be an IPv4 or IPv6 address"
+  exit 13
 fi
 
 shift
@@ -62,7 +94,10 @@ done
 # load any hostnames specified in STDIN
 if [ ${#@} -lt 1 ]; then
 	while read -t3 line; do
-		if [[ ${line} =~ ^.+\..+$ ]]; then
+    if [[ ${line} =~ ^[\s#]+ ]]; then
+      # Ignore lines beginning with # as comments.
+      :
+		elif [[ ${line} =~ ^.+\..+$ ]]; then
 			HOSTNAMES=("${HOSTNAMES[@]}" "${line}")
 		elif [ -z "${line}" ]; then
 			# Do nothing
@@ -83,7 +118,7 @@ fi
 for HOSTNAME in "${HOSTNAMES[@]}"
 do
 	printf '%-60s' "${HOSTNAME}"
-  ERROR=$( { curl -I -sS --resolve "${HOSTNAME}:443:${IP_ADDRESS}" "https://${HOSTNAME}/" > /dev/null; } 2>&1 )
+  ERROR=$( { curl -I -sS ${CURL_OPTS} --resolve "${HOSTNAME}:443:${IP_ADDRESS}" "https://${HOSTNAME}/" > /dev/null; } 2>&1 )
   if [ $? -eq 0 ]; then
     echo "OK"
   else
@@ -91,7 +126,7 @@ do
     echo $ERROR
     echo ""
     echo "Use this command for more details:"
-    echo "  curl -I -v -sS --resolve \"${HOSTNAME}:443:${IP_ADDRESS}\" \"https://${HOSTNAME}/\" > /dev/null"
+    echo "  curl -I -v -sS ${CURL_OPTS} --resolve \"${HOSTNAME}:443:${IP_ADDRESS}\" \"https://${HOSTNAME}/\" > /dev/null"
     echo ""
   fi
 done

@@ -28,10 +28,22 @@ or pipe hostnames via stdin:
 ```
 echo "<hostname_1>
 ...
-<hostname_n>" | ./https-certificate-test <ip-address>
+<hostname_n>" > hostnames.txt;
+
+cat hostnames.txt | ./https-certificate-test <ip-address>
 ```
 
 Pass `-h` or `--help` to see usage.
+
+This command also allows you to pass arbitrary options to the underlying curl
+command. Any options beginning with `-` or `--` will be passed through to curl
+along with their associated value (if any). For example, curl's `--cacert`
+option may be needed if your local environment doesn't trust the certificate
+authority used to sign the remote webserver's certificate:
+
+```
+./https-certificate-test --cacert path/to/DigiCertCA.crt <ip-address> <hostname_1> [... <hostname_n>]
+```
 
 ## Examples
 
