@@ -1,0 +1,94 @@
+#!/bin/bash
+
+# `https-certificate-test` is a bash script to test that a webserver at an IP
+# address is properly configured with HTTPS certificates for many hostnames,
+# without having to add entries to your `/etc/hosts` file and checking with a
+# browser.
+#
+# This command loops through a list of hostnames and makes a CURL request to
+# each one to validate that the webserver is properly configured to use the right
+# certificate for each hostname and that the certificates are valid.
+#
+# It uses CURL's `--resolve` option to ensure that the request is going to the
+# webserver IP that you specify, but making the request for the hostname
+# specified:
+#
+#   curl -I -sS --resolve "${HOSTNAME}:443:${IP_ADDRESS}" "https://${HOSTNAME}/"
+#
+# Repository: https://github.com/middlebury/https-certificate-test
+# Author: Adam Franco https://github.com/adamfranco
+# License: GNU General Public License version 3 or later
+
+
+# Set up our environment and variables
+usage="usage:
+$0 <ip-address> <hostname_1> [... <hostname_n>]
+or pipe hostnames via stdin:
+echo \"<hostname_1>
+...
+<hostname_n>\" | $0 <ip-address>
+"
+
+# Print help for this script
+for var in "$@"
+do
+  if [[ "$var" == "-h" || "$var" == "--help" || "$var" == "-?" ]]; then
+    echo "$usage"
+    exit 1
+  fi
+done
+
+# Ensure that the config-section parameter is passed and that it is one of our sections
+IP_ADDRESS=$1
+if [ -z "$IP_ADDRESS" ]; then
+  echo "$usage"
+  echo "    <ip-address> must not be empty"
+  exit 12
+fi
+
+shift
+HOSTNAMES=()
+
+# Load any sites from positional parameters
+for param in $@; do
+	if [[ $param =~ ^.+\..+$ ]]; then
+		HOSTNAMES=("${HOSTNAMES[@]}" "$param")
+	else
+		echo "Warning: $param does not look like a hostname."
+	fi
+done
+
+# IF no hostnames were passed as arguments,
+# load any hostnames specified in STDIN
+if [ ${#@} -lt 1 ]; then
+	while read -t3 line; do
+		if [[ ${line} =~ ^.+\..+$ ]]; then
+			HOSTNAMES=("${HOSTNAMES[@]}" "${line}")
+		elif [ -z "${line}" ]; then
+			# Do nothing
+			:
+		else
+			echo "Warning: $param does not look like a hostname."
+		fi
+	done < /dev/stdin
+fi
+
+if [ ${#HOSTNAMES[@]} -lt 1 ]; then
+	echo "Error: No hostnames were specified."
+	echo "$usage"
+	exit 20
+fi
+
+# Check the certificate of each hostname.
+for HOSTNAME in "${HOSTNAMES[@]}"
+do
+	printf '%-60s' "${HOSTNAME}"
+  ERROR=$( { curl -I -sS --resolve "${HOSTNAME}:443:${IP_ADDRESS}" "https://${HOSTNAME}/" > /dev/null; } 2>&1 )
+  if [ $? -eq 0 ]; then
+    echo "OK"
+  else
+    echo "ERROR"
+    echo $ERROR
+    echo ""
+  fi
+done
