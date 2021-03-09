@@ -90,5 +90,8 @@ do
     echo "ERROR"
     echo $ERROR
     echo ""
+    echo "Use this command for more details:"
+    echo "  curl -I -v -sS --resolve \"${HOSTNAME}:443:${IP_ADDRESS}\" \"https://${HOSTNAME}/\" > /dev/null"
+    echo ""
   fi
 done
