@@ -94,7 +94,7 @@ done
 # load any hostnames specified in STDIN
 if [ ${#@} -lt 1 ]; then
 	while read -t3 line; do
-    if [[ ${line} =~ ^[\s#]+ ]]; then
+    if [[ ${line} =~ ^\s*# ]]; then
       # Ignore lines beginning with # as comments.
       :
 		elif [[ ${line} =~ ^.+\..+$ ]]; then
